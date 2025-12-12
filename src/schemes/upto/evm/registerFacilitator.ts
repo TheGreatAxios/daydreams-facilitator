@@ -1,0 +1,18 @@
+import { x402Facilitator } from "@x402/core/facilitator";
+import type { Network } from "@x402/core/types";
+import type { FacilitatorEvmSigner } from "@x402/evm";
+
+import { UptoEvmScheme } from "./facilitator.js";
+
+export interface UptoEvmFacilitatorConfig {
+  signer: FacilitatorEvmSigner;
+  networks: Network | Network[];
+}
+
+export function registerUptoEvmScheme(
+  facilitator: x402Facilitator,
+  config: UptoEvmFacilitatorConfig
+): x402Facilitator {
+  facilitator.register(config.networks, new UptoEvmScheme(config.signer));
+  return facilitator;
+}

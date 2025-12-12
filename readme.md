@@ -37,6 +37,35 @@ cd facilitator
 pnpm dev
 ```
 
+### Smoke test client (upto)
+
+This repo includes a tiny client under `examples/smokeClient.ts` to hit the demo upto endpoint and settle a batch.
+
+1. Export a funded EOA private key for the payer:
+
+```bash
+export CLIENT_EVM_PRIVATE_KEY="0x..."
+```
+
+2. (Optional) set a Base Sepolia RPC URL:
+
+```bash
+export RPC_URL="https://sepolia.base.org"
+```
+
+3. Run the smoke client:
+
+```bash
+pnpm smoke:upto
+```
+
+The client will:
+- call `GET /api/upto-premium` without payment to receive a 402
+- sign and cache a Permit for the cap
+- make 3 paid requests to accrue spend
+- call `POST /api/upto-close` to force a batch settle
+- print session state before/after
+
 ## OpenTelemetry (optional)
 
 Tracing is enabled via `@elysiajs/opentelemetry` and exports spans using OTLP over HTTP/protobuf.
@@ -60,6 +89,11 @@ Returns payment schemes and networks this facilitator supports.
     {
       "x402Version": 2,
       "scheme": "exact",
+      "network": "eip155:84532"
+    },
+    {
+      "x402Version": 2,
+      "scheme": "upto",
       "network": "eip155:84532"
     },
     {
@@ -172,6 +206,49 @@ Response (failure):
 }
 ```
 
+## Paywalled demo routes (v2)
+
+This example also includes a tiny paid resource API using `x402ResourceServer` + `x402HTTPResourceServer`
+pointing at this facilitator:
+
+- `GET /api/premium` (EVM exact, Base Sepolia)
+- `GET /api/premium-solana` (SVM exact, Solana Devnet)
+- `GET /api/upto-premium` (EVM upto, Base Sepolia, batched settlement)
+- `POST /api/upto-close` (settle an upto session)
+
+Clients should use the v2 stack (`@x402/core` + `@x402/evm|svm` + optionally `@x402/fetch`) to
+handle 402 responses, create `X-PAYMENT` headers, and read `X-PAYMENT-RESPONSE`.
+
+### Upto scheme (batched payments)
+
+`scheme: "upto"` is a Permit/allowance-based flow for EVM tokens:
+
+1. The resource server returns a 402 with per‑request price in `amount` and a cap in `extra.maxAmountRequired`.
+2. The client signs an ERC‑2612 Permit once for that cap, sends it in `X-PAYMENT`, and caches it.
+3. Subsequent requests reuse the same cached `X-PAYMENT`. The resource server:
+   - verifies the Permit each request via `/verify`
+   - tracks spend in an in‑memory session (pending vs settled)
+   - allows requests until `settledTotal + pendingSpent + price > cap`
+   - returns `x-upto-session-id` on successful requests
+4. The server automatically settles a batch by calling facilitator `/settle` once with
+   `amount = pendingSpent` when any of these triggers fire:
+   - idle timeout (no activity for a while)
+   - near Permit deadline
+   - near cap threshold (demo uses ~90%)
+   After a successful batch, `pendingSpent` resets to 0 and the session stays open
+   until cap/deadline are reached.
+5. Optional manual close: client may call `POST /api/upto-close` with `{ "sessionId": "..." }`
+   to force a final batch and close the session.
+   Use `GET /api/upto-session/:id` to inspect session state and see the last receipt.
+
+Notes/limitations:
+
+- Works only for ERC‑2612 Permit tokens (demo assumes USDC on Base Sepolia).  
+  It does **not** work for EIP‑3009 “transferWithAuthorization” tokens.
+- EOA ECDSA signatures only (no Permit2, no smart‑wallet/EIP‑1271/EIP‑6492 support yet).
+- Demo session storage is an in‑memory `Map`; restart loses sessions.
+- `maxAmountRequired` and `amount` are in base units (USDC = 6 decimals).
+
 ## Extending the Example
 
 ### Adding Networks
@@ -181,10 +258,16 @@ Register additional schemes for other networks:
 ```typescript
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { registerUptoEvmScheme } from "./schemes/upto/evm/registerFacilitator.js";
 
 const facilitator = new x402Facilitator();
 
 registerExactEvmScheme(facilitator, {
+  signer: evmSigner,
+  networks: "eip155:84532",
+});
+
+registerUptoEvmScheme(facilitator, {
   signer: evmSigner,
   networks: "eip155:84532",
 });

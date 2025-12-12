@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
+    "smoke:upto": "tsx examples/smokeClient.ts",
     "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",
