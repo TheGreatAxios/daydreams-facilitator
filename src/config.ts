@@ -16,4 +16,3 @@ if (!SVM_PRIVATE_KEY) {
   console.error("❌ SVM_PRIVATE_KEY environment variable is required");
   process.exit(1);
 }
-

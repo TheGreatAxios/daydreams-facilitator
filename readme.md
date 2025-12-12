@@ -6,7 +6,7 @@ Elysia facilitator service (Node runtime) that verifies and settles payments on-
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- EVM private key with Base Sepolia ETH for transaction fees
+- EVM private key with Base ETH for transaction fees
 - SVM private key with Solana Devnet SOL for transaction fees
 
 ## Setup
@@ -47,10 +47,10 @@ This repo includes a tiny client under `examples/smokeClient.ts` to hit the demo
 export CLIENT_EVM_PRIVATE_KEY="0x..."
 ```
 
-2. (Optional) set a Base Sepolia RPC URL:
+2. (Optional) set a Base mainnet RPC URL:
 
 ```bash
-export RPC_URL="https://sepolia.base.org"
+export RPC_URL="https://mainnet.base.org"
 ```
 
 3. Run the smoke client:
@@ -86,16 +86,16 @@ Returns payment schemes and networks this facilitator supports.
 ```json
 {
   "kinds": [
-    {
-      "x402Version": 2,
-      "scheme": "exact",
-      "network": "eip155:84532"
-    },
-    {
-      "x402Version": 2,
-      "scheme": "upto",
-      "network": "eip155:84532"
-    },
+	    {
+	      "x402Version": 2,
+	      "scheme": "exact",
+	      "network": "eip155:8453"
+	    },
+	    {
+	      "x402Version": 2,
+	      "scheme": "upto",
+	      "network": "eip155:8453"
+	    },
     {
       "x402Version": 2,
       "scheme": "exact",
@@ -128,36 +128,36 @@ Request:
       "description": "Weather data",
       "mimeType": "application/json"
     },
-    "accepted": {
-      "scheme": "exact",
-      "network": "eip155:84532",
-      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "amount": "1000",
-      "payTo": "0x...",
-      "maxTimeoutSeconds": 300,
-      "extra": {
-        "name": "USDC",
-        "version": "2"
-      }
-    },
+	    "accepted": {
+	      "scheme": "exact",
+	      "network": "eip155:8453",
+	      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+	      "amount": "1000",
+	      "payTo": "0x...",
+	      "maxTimeoutSeconds": 300,
+	      "extra": {
+	        "name": "USD Coin",
+	        "version": "2"
+	      }
+	    },
     "payload": {
       "signature": "0x...",
       "authorization": {}
     }
   },
-  "paymentRequirements": {
-    "scheme": "exact",
-    "network": "eip155:84532",
-    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    "amount": "1000",
-    "payTo": "0x...",
-    "maxTimeoutSeconds": 300,
-    "extra": {
-      "name": "USDC",
-      "version": "2"
-    }
-  }
-}
+	  "paymentRequirements": {
+	    "scheme": "exact",
+	    "network": "eip155:8453",
+	    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+	    "amount": "1000",
+	    "payTo": "0x...",
+	    "maxTimeoutSeconds": 300,
+	    "extra": {
+	      "name": "USD Coin",
+	      "version": "2"
+	    }
+	  }
+	}
 ```
 
 Response (success):
@@ -187,23 +187,23 @@ Request body is identical to `/verify`.
 Response (success):
 
 ```json
-{
-  "success": true,
-  "transaction": "0x...",
-  "network": "eip155:84532",
-  "payer": "0x..."
-}
+	{
+	  "success": true,
+	  "transaction": "0x...",
+	  "network": "eip155:8453",
+	  "payer": "0x..."
+	}
 ```
 
 Response (failure):
 
 ```json
-{
-  "success": false,
-  "errorReason": "insufficient_balance",
-  "transaction": "",
-  "network": "eip155:84532"
-}
+	{
+	  "success": false,
+	  "errorReason": "insufficient_balance",
+	  "transaction": "",
+	  "network": "eip155:8453"
+	}
 ```
 
 ## Paywalled demo routes (v2)
@@ -211,21 +211,21 @@ Response (failure):
 This example also includes a tiny paid resource API using `x402ResourceServer` + `x402HTTPResourceServer`
 pointing at this facilitator:
 
-- `GET /api/premium` (EVM exact, Base Sepolia)
+- `GET /api/premium` (EVM exact, Base Mainnet)
 - `GET /api/premium-solana` (SVM exact, Solana Devnet)
-- `GET /api/upto-premium` (EVM upto, Base Sepolia, batched settlement)
+- `GET /api/upto-premium` (EVM upto, Base Mainnet, batched settlement)
 - `POST /api/upto-close` (settle an upto session)
 
 Clients should use the v2 stack (`@x402/core` + `@x402/evm|svm` + optionally `@x402/fetch`) to
-handle 402 responses, create `X-PAYMENT` headers, and read `X-PAYMENT-RESPONSE`.
+handle 402 responses, send `PAYMENT-SIGNATURE`, and read `PAYMENT-RESPONSE` (v1 used `X-PAYMENT` / `X-PAYMENT-RESPONSE`).
 
 ### Upto scheme (batched payments)
 
 `scheme: "upto"` is a Permit/allowance-based flow for EVM tokens:
 
 1. The resource server returns a 402 with per‑request price in `amount` and a cap in `extra.maxAmountRequired`.
-2. The client signs an ERC‑2612 Permit once for that cap, sends it in `X-PAYMENT`, and caches it.
-3. Subsequent requests reuse the same cached `X-PAYMENT`. The resource server:
+2. The client signs an ERC‑2612 Permit once for that cap, sends it in `PAYMENT-SIGNATURE`, and caches it.
+3. Subsequent requests reuse the same cached `PAYMENT-SIGNATURE`. The resource server:
    - verifies the Permit each request via `/verify`
    - tracks spend in an in‑memory session (pending vs settled)
    - allows requests until `settledTotal + pendingSpent + price > cap`
@@ -243,7 +243,7 @@ handle 402 responses, create `X-PAYMENT` headers, and read `X-PAYMENT-RESPONSE`.
 
 Notes/limitations:
 
-- Works only for ERC‑2612 Permit tokens (demo assumes USDC on Base Sepolia).  
+- Works only for ERC‑2612 Permit tokens (demo assumes USDC on Base Mainnet).  
   It does **not** work for EIP‑3009 “transferWithAuthorization” tokens.
 - EOA ECDSA signatures only (no Permit2, no smart‑wallet/EIP‑1271/EIP‑6492 support yet).
 - Demo session storage is an in‑memory `Map`; restart loses sessions.
@@ -264,12 +264,12 @@ const facilitator = new x402Facilitator();
 
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
-  networks: "eip155:84532",
+  networks: "eip155:8453",
 });
 
 registerUptoEvmScheme(facilitator, {
   signer: evmSigner,
-  networks: "eip155:84532",
+  networks: "eip155:8453",
 });
 
 registerExactSvmScheme(facilitator, {

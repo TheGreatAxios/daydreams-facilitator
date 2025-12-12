@@ -8,6 +8,24 @@ import type {
 import type { FacilitatorEvmSigner } from "@x402/evm";
 import { getAddress, parseSignature } from "viem";
 
+function errorSummary(error: unknown): string {
+  if (!error) return "unknown_error";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const anyErr = error as { shortMessage?: unknown; message?: unknown };
+    if (typeof anyErr.shortMessage === "string") return anyErr.shortMessage;
+    if (typeof anyErr.message === "string") return anyErr.message;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 type UptoEvmAuthorization = {
   from: `0x${string}`;
   to: `0x${string}`;
@@ -319,6 +337,7 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
     const deadline = toBigInt(authorization.validBefore);
 
     // 1) Try to apply permit for the cap.
+    let permitError: unknown | undefined;
     try {
       const permitTx = await this.signer.writeContract({
         address: erc20Address,
@@ -328,7 +347,8 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
       });
 
       await this.signer.waitForTransactionReceipt({ hash: permitTx });
-    } catch {
+    } catch (error) {
+      permitError = error;
       // If permit fails (already used), rely on allowance.
       try {
         const allowance = (await this.signer.readContract({
@@ -339,6 +359,14 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
         })) as bigint;
 
         if (allowance < totalSpent) {
+          console.error("Permit failed:", errorSummary(permitError));
+          console.error("Allowance insufficient:", {
+            allowance: allowance.toString(),
+            required: totalSpent.toString(),
+            payer,
+            spender,
+            asset: erc20Address,
+          });
           return {
             success: false,
             errorReason: "insufficient_allowance",

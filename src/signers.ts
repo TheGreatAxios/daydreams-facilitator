@@ -4,7 +4,7 @@ import { toFacilitatorEvmSigner } from "@x402/evm";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { base } from "viem/chains";
 
 import { EVM_PRIVATE_KEY, SVM_PRIVATE_KEY } from "./config.js";
 
@@ -19,10 +19,11 @@ export const svmAccount = await createKeyPairSignerFromBytes(
 console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
+const evmRpcUrl = process.env.EVM_RPC_URL_BASE ?? process.env.RPC_URL;
 const viemClient = createWalletClient({
   account: evmAccount,
-  chain: baseSepolia,
-  transport: http(),
+  chain: base,
+  transport: evmRpcUrl ? http(evmRpcUrl) : http(),
 }).extend(publicActions);
 
 export const evmSigner = toFacilitatorEvmSigner({

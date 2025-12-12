@@ -12,6 +12,7 @@ import { localFacilitatorClient } from "../src/localFacilitatorClient.js";
 import { uptoStore } from "../src/upto/index.js";
 import { settleUptoSession } from "../src/upto/settlement.js";
 import type { UptoSession } from "../src/upto/sessionStore.js";
+import node from "@elysiajs/node";
 
 const resourceServer = new x402ResourceServer(localFacilitatorClient)
   .register("eip155:*", new ExactEvmScheme())
@@ -24,7 +25,7 @@ const routes = {
   "GET /api/premium": {
     accepts: {
       scheme: "exact",
-      network: "eip155:84532",
+      network: "eip155:8453",
       payTo: evmAccount.address,
       price: "$0.01",
     },
@@ -44,12 +45,19 @@ const routes = {
   "GET /api/upto-premium": {
     accepts: {
       scheme: "upto",
-      network: "eip155:84532",
+      network: "eip155:8453",
       payTo: evmAccount.address,
-      price: "$0.01", // per-request price
-      extra: {
-        // USDC 6 decimals: $0.05 cap
-        maxAmountRequired: "50000",
+      // NOTE: `PaymentOption.extra` is not currently propagated into `PaymentRequirements.extra`
+      // by `@x402/core`'s HTTP helper, so we attach the cap to `price.extra` instead.
+      // Per-request: $0.01 (USDC 6 decimals = 10_000). Cap: $0.05 (50_000).
+      price: {
+        amount: "10000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        extra: {
+          name: "USD Coin",
+          version: "2",
+          maxAmountRequired: "50000",
+        },
       },
     },
     description: "Premium demo endpoint (upto / batched)",
@@ -106,7 +114,11 @@ function createAdapter(ctx: { request: Request; body: unknown }): HTTPAdapter {
   };
 }
 
-export const paidApi = new Elysia({ prefix: "/api", name: "paidApi" })
+export const app = new Elysia({
+  prefix: "/api",
+  name: "paidApi",
+  adapter: node(),
+})
   .onBeforeHandle(async (ctx) => {
     const adapter = createAdapter(ctx);
     const result = await httpServer.processHTTPRequest({
@@ -256,3 +268,6 @@ export const paidApi = new Elysia({ prefix: "/api", name: "paidApi" })
       }
     );
   });
+
+app.listen(4022);
+console.log("Facilitator listening");

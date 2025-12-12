@@ -22,7 +22,8 @@ export async function settleUptoSession(
 ) {
   const session = store.get(sessionId);
   if (!session) return;
-  if (session.status !== "open") return;
+  if (session.status === "settling") return;
+  const initialStatus = session.status;
 
   if (session.pendingSpent <= 0n) {
     if (closeAfter) {
@@ -69,16 +70,22 @@ export async function settleUptoSession(
   };
 
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
-  if (
-    closeAfter ||
-    session.settledTotal >= session.cap ||
-    session.deadline <= nowSec + BigInt(deadlineBufferSec)
-  ) {
-    session.status = "closed";
+  if (receipt.success) {
+    if (
+      closeAfter ||
+      session.settledTotal >= session.cap ||
+      session.deadline <= nowSec + BigInt(deadlineBufferSec)
+    ) {
+      session.status = "closed";
+    } else {
+      session.status = "open";
+    }
   } else {
-    session.status = "open";
+    // If settlement failed, keep the session retryable.
+    // - On manual close: mark closed (stop accrual) but allow re-close retries.
+    // - Otherwise: restore prior status.
+    session.status = closeAfter ? "closed" : initialStatus;
   }
 
   store.set(sessionId, session);
 }
-

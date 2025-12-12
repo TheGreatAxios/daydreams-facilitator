@@ -4,9 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "tsx index.ts",
-    "dev": "tsx watch index.ts",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "smoke:upto": "tsx examples/smokeClient.ts",
+    "smoke:api": "tsx examples/paidApi.ts",
     "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",

@@ -10,22 +10,22 @@ import type {
 } from "@x402/core/types";
 import { createPublicClient, getAddress, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { base } from "viem/chains";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4022";
 const CLIENT_EVM_PRIVATE_KEY = process.env.CLIENT_EVM_PRIVATE_KEY;
+
 if (!CLIENT_EVM_PRIVATE_KEY) {
   console.error("Set CLIENT_EVM_PRIVATE_KEY to run smoke client");
   process.exit(1);
 }
 
-const account = privateKeyToAccount(
-  CLIENT_EVM_PRIVATE_KEY as `0x${string}`
-);
+const account = privateKeyToAccount(CLIENT_EVM_PRIVATE_KEY as `0x${string}`);
+console.log("payer", account.address);
 
 const publicClient = createPublicClient({
-  chain: baseSepolia,
-  transport: http(process.env.RPC_URL),
+  chain: base,
+  transport: http(process.env.RPC_URL ?? process.env.EVM_RPC_URL_BASE),
 });
 
 const noncesAbi = [
@@ -59,9 +59,7 @@ function getCacheKey(req: PaymentRequirements) {
 async function createUptoPaymentPayload(
   paymentRequired: PaymentRequired
 ): Promise<PaymentPayload> {
-  const requirement = paymentRequired.accepts.find(
-    (r) => r.scheme === "upto"
-  );
+  const requirement = paymentRequired.accepts.find((r) => r.scheme === "upto");
   if (!requirement) {
     throw new Error("No upto requirement in accepts");
   }
@@ -160,7 +158,8 @@ async function fetchWithUpto(
   paymentHeader?: string
 ): Promise<Response> {
   return fetch(`${BASE_URL}${path}`, {
-    headers: paymentHeader ? { "X-PAYMENT": paymentHeader } : {},
+    // x402 v2 uses PAYMENT-SIGNATURE (v1 used X-PAYMENT).
+    headers: paymentHeader ? { "PAYMENT-SIGNATURE": paymentHeader } : {},
   });
 }
 
@@ -174,7 +173,10 @@ async function main() {
     let res = await fetchWithUpto(path, paymentHeader);
     if (res.status === 402) {
       const requiredHeader = res.headers.get("PAYMENT-REQUIRED");
-      if (!requiredHeader) throw new Error("Missing PAYMENT-REQUIRED header");
+      if (!requiredHeader) {
+        console.error("402 without PAYMENT-REQUIRED header:", await res.text());
+        process.exit(1);
+      }
 
       const paymentRequired = decodePaymentRequiredHeader(
         requiredHeader
@@ -234,4 +236,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
