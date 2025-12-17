@@ -105,17 +105,9 @@ Client → POST /verify → Permit validation → Session created/updated
 
 ### Prerequisites
 
-- Node.js v18+
+- Node.js v22+
 - EVM private key with Base ETH for gas (or CDP account)
 - SVM private key with SOL for fees (optional)
-
-### Installation
-
-```bash
-npm install @daydreamsai/facilitator
-# or
-bun add @daydreamsai/facilitator
-```
 
 ### As a Library
 
@@ -142,20 +134,6 @@ const facilitator = createFacilitator({
   evmSigners: [{ signer, networks: "eip155:8453", schemes: ["exact", "upto"] }],
 });
 ```
-
-### As a CLI Server
-
-```bash
-# Set environment variables
-export CDP_API_KEY_ID="..."
-export CDP_API_KEY_SECRET="..."
-export CDP_WALLET_SECRET="..."
-
-# Run the server
-npx x402-facilitator
-```
-
-The server starts at `http://localhost:8090`.
 
 ### From Source
 
