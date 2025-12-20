@@ -2,7 +2,7 @@
 
 > **Warning**: This project is currently in alpha. APIs may change without notice and should not be used in production environments without thorough testing.
 
-A production-ready payment settlement service for the [x402 protocol](https://github.com/coinbase/x402). Built with Elysia and Node.js, it verifies cryptographic payment signatures and settles transactions on-chain for EVM (Base) and SVM (Solana) networks.
+A production-ready payment settlement service for the [x402 protocol](https://github.com/coinbase/x402). Built with Elysia and Node.js, it verifies cryptographic payment signatures and settles transactions on-chain for EVM, SVM (Solana), and Starknet networks.
 
 ## Table of Contents
 
@@ -39,6 +39,8 @@ The x402 Facilitator acts as a trusted intermediary between clients making payme
 | Optimism       | `eip155:10`                               | exact, upto |
 | Arbitrum       | `eip155:42161`                            | exact, upto |
 | Polygon        | `eip155:137`                              | exact, upto |
+| Starknet Mainnet | `starknet:mainnet`                      | exact       |
+| Starknet Sepolia | `starknet:sepolia`                      | exact       |
 | Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | exact       |
 | Solana Mainnet | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | exact       |
 
@@ -182,6 +184,18 @@ curl http://localhost:8090/supported
 
 \*Required when CDP credentials are not configured.
 
+**Starknet Paymaster (Exact Scheme)**
+
+| Variable                           | Required | Default | Description                                      |
+| ---------------------------------- | -------- | ------- | ------------------------------------------------ |
+| `STARKNET_PAYMASTER_API_KEY`       | No       | -       | Paymaster API key (AVNU hosted paymaster)        |
+| `STARKNET_SPONSOR_ADDRESS`         | Yes\*    | -       | Sponsor account address for /supported signers   |
+| `STARKNET_PAYMASTER_ENDPOINT_*`    | No       | -       | Per-network paymaster endpoint override          |
+| `STARKNET_PAYMASTER_API_KEY_*`     | No       | -       | Per-network paymaster API key override           |
+| `STARKNET_SPONSOR_ADDRESS_*`       | No       | -       | Per-network sponsor address override             |
+
+\*Required when enabling Starknet networks.
+
 **Server Configuration**
 
 | Variable | Required | Default | Description |
@@ -197,6 +211,7 @@ The facilitator uses a simplified network configuration system. Instead of manua
 | Variable       | Default                 | Description                    |
 | -------------- | ----------------------- | ------------------------------ |
 | `EVM_NETWORKS` | `base,base-sepolia`     | Comma-separated EVM networks   |
+| `STARKNET_NETWORKS` | `(empty)`          | Comma-separated Starknet networks (opt-in) |
 | `SVM_NETWORKS` | `solana-devnet`         | Comma-separated Solana networks |
 
 **Supported EVM Networks**
@@ -218,6 +233,13 @@ The facilitator uses a simplified network configuration system. Instead of manua
 | `abstract`         | `eip155:2741`     | 2741     |
 | `abstract-testnet` | `eip155:11124`    | 11124    |
 
+**Supported Starknet Networks**
+
+| Name               | CAIP-2             |
+| ------------------ | ------------------ |
+| `starknet-mainnet` | `starknet:mainnet` |
+| `starknet-sepolia` | `starknet:sepolia` |
+
 **Supported SVM Networks**
 
 | Name              | CAIP-2                                    |
@@ -234,7 +256,7 @@ RPC URLs are automatically resolved based on available API keys. Set a single AP
 
 | Variable          | Provider | Description                                       |
 | ----------------- | -------- | ------------------------------------------------- |
-| `ALCHEMY_API_KEY` | Alchemy  | EVM RPC provider ([alchemy.com](https://alchemy.com)) |
+| `ALCHEMY_API_KEY` | Alchemy  | EVM + Starknet RPC provider ([alchemy.com](https://alchemy.com)) |
 | `INFURA_API_KEY`  | Infura   | EVM RPC provider ([infura.io](https://infura.io))     |
 | `HELIUS_API_KEY`  | Helius   | Solana RPC provider ([helius.dev](https://helius.dev)) |
 
@@ -244,6 +266,12 @@ RPC URLs are automatically resolved based on available API keys. Set a single AP
 2. Alchemy (if `ALCHEMY_API_KEY` is set)
 3. Infura (if `INFURA_API_KEY` is set)
 4. Public RPC fallback
+
+**RPC Resolution Priority (Starknet)**
+
+1. Explicit override: `STARKNET_RPC_URL_<NETWORK>` (e.g., `STARKNET_RPC_URL_STARKNET_MAINNET`)
+2. Alchemy (if `ALCHEMY_API_KEY` is set)
+3. Public RPC fallback
 
 **RPC Resolution Priority (SVM)**
 
@@ -259,6 +287,10 @@ Override specific networks when needed (hyphens become underscores in env var na
 # EVM overrides
 EVM_RPC_URL_BASE=https://custom-base-rpc.example.com
 EVM_RPC_URL_BASE_SEPOLIA=https://custom-sepolia-rpc.example.com
+
+# Starknet overrides
+STARKNET_RPC_URL_STARKNET_MAINNET=https://custom-starknet-mainnet.example.com
+STARKNET_RPC_URL_STARKNET_SEPOLIA=https://custom-starknet-sepolia.example.com
 
 # SVM overrides
 SVM_RPC_URL_SOLANA_MAINNET=https://custom-solana-rpc.example.com
@@ -290,6 +322,15 @@ SVM_NETWORKS=solana-mainnet,solana-devnet
 ALCHEMY_API_KEY=your-alchemy-key
 HELIUS_API_KEY=your-helius-key
 SVM_PRIVATE_KEY=your-solana-private-key
+```
+
+**Starknet (Opt-in)**
+
+```bash
+STARKNET_NETWORKS=starknet-mainnet,starknet-sepolia
+ALCHEMY_API_KEY=your-alchemy-key
+STARKNET_SPONSOR_ADDRESS=0xyour-sponsor-address
+STARKNET_PAYMASTER_API_KEY=your-paymaster-key
 ```
 
 ### OpenTelemetry (Optional)

@@ -14,6 +14,7 @@ import {
   createFacilitator,
   type EvmSignerConfig,
   type SvmSignerConfig,
+  type StarknetConfig,
   type NetworkId,
 } from "./factory.js";
 import { createCdpEvmSigner, type CdpNetwork } from "./signers/cdp.js";
@@ -22,6 +23,7 @@ import {
   SVM_PRIVATE_KEY,
   CDP_ACCOUNT_NAME,
   getNetworkSetups,
+  getStarknetNetworkSetups,
   getSvmNetworkSetups,
   getRpcUrl,
 } from "./config.js";
@@ -36,8 +38,36 @@ export * from "./factory.js";
 async function createDefaultSigners(): Promise<{
   evmSigners: EvmSignerConfig[];
   svmSigners: SvmSignerConfig[];
+  starknetConfigs: StarknetConfig[];
 }> {
   const networkSetups = getNetworkSetups();
+  const starknetNetworkSetups = getStarknetNetworkSetups();
+
+  const starknetConfigs: StarknetConfig[] = [];
+  for (const network of starknetNetworkSetups) {
+    if (!network.rpcUrl) {
+      console.warn(`⚠️  No RPC URL for ${network.name} - skipping`);
+      continue;
+    }
+    if (!network.paymasterEndpoint) {
+      console.warn(`⚠️  No paymaster endpoint for ${network.name} - skipping`);
+      continue;
+    }
+    if (!network.sponsorAddress) {
+      console.warn(`⚠️  No sponsor address for ${network.name} - skipping`);
+      continue;
+    }
+
+    starknetConfigs.push({
+      network: network.caip as StarknetConfig["network"],
+      rpcUrl: network.rpcUrl,
+      paymasterEndpoint: network.paymasterEndpoint,
+      ...(network.paymasterApiKey
+        ? { paymasterApiKey: network.paymasterApiKey }
+        : {}),
+      sponsorAddress: network.sponsorAddress,
+    });
+  }
 
   if (USE_CDP) {
     // CDP Signer (preferred)
@@ -87,7 +117,7 @@ async function createDefaultSigners(): Promise<{
       }
     }
 
-    return { evmSigners, svmSigners };
+    return { evmSigners, svmSigners, starknetConfigs };
   } else {
     // Private Key Signer (fallback)
     const { createPrivateKeyEvmSigner, svmSigner } =
@@ -131,7 +161,7 @@ async function createDefaultSigners(): Promise<{
       }
     }
 
-    return { evmSigners, svmSigners };
+    return { evmSigners, svmSigners, starknetConfigs };
   }
 }
 

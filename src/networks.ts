@@ -5,6 +5,7 @@
  * - CAIP-2 identifiers
  * - Chain IDs
  * - RPC URL templates (Alchemy, Helius, public fallbacks)
+ * - Starknet RPC URL templates (Alchemy, public fallbacks)
  * - V1 scheme support detection (from @x402/evm)
  */
 
@@ -36,8 +37,18 @@ export interface SvmNetworkConfig {
   public?: string;
 }
 
+export interface StarknetNetworkConfig {
+  /** CAIP-2 identifier (e.g., "starknet:mainnet") */
+  caip: `starknet:${string}`;
+  /** Alchemy subdomain (e.g., "starknet-mainnet.g.alchemy.com/v2") */
+  alchemy?: string;
+  /** Public RPC fallback URL */
+  public?: string;
+}
+
 export type EvmNetworkName = keyof typeof EVM_NETWORKS;
 export type SvmNetworkName = keyof typeof SVM_NETWORKS;
+export type StarknetNetworkName = keyof typeof STARKNET_NETWORKS;
 
 /** @deprecated Use EvmNetworkConfig instead */
 export type NetworkConfig = EvmNetworkConfig;
@@ -156,6 +167,23 @@ export const EVM_NETWORKS = {
 } as const satisfies Record<string, EvmNetworkConfig>;
 
 // ============================================================================
+// Starknet Network Registry
+// ============================================================================
+
+export const STARKNET_NETWORKS = {
+  "starknet-mainnet": {
+    caip: "starknet:mainnet",
+    alchemy: "starknet-mainnet.g.alchemy.com/v2",
+    public: "https://starknet-mainnet.public.blastapi.io",
+  },
+  "starknet-sepolia": {
+    caip: "starknet:sepolia",
+    alchemy: "starknet-sepolia.g.alchemy.com/v2",
+    public: "https://starknet-sepolia.public.blastapi.io",
+  },
+} as const satisfies Record<string, StarknetNetworkConfig>;
+
+// ============================================================================
 // SVM (Solana) Network Registry
 // ============================================================================
 
@@ -249,6 +277,76 @@ export function resolveRpcUrl(
 
   // 4. Public fallback
   return config.public;
+}
+
+// ============================================================================
+// Starknet Helpers
+// ============================================================================
+
+/**
+ * Get Starknet network config by name
+ */
+export function getStarknetNetwork(
+  name: string
+): StarknetNetworkConfig | undefined {
+  return STARKNET_NETWORKS[name as StarknetNetworkName];
+}
+
+/**
+ * Get CAIP-2 identifier for a Starknet network
+ */
+export function getStarknetNetworkCaip(name: string): string | undefined {
+  return getStarknetNetwork(name)?.caip;
+}
+
+/**
+ * Resolve RPC URL for a Starknet network
+ *
+ * Priority:
+ * 1. Explicit override from env (STARKNET_RPC_URL_STARKNET_MAINNET, etc.)
+ * 2. Alchemy URL (if ALCHEMY_API_KEY is set)
+ * 3. Public RPC fallback
+ *
+ * @param network - Network name (e.g., "starknet-mainnet")
+ * @param options - Optional overrides for API keys
+ */
+export function resolveStarknetRpcUrl(
+  network: string,
+  options?: {
+    alchemyApiKey?: string;
+    explicitUrl?: string;
+  }
+): string | undefined {
+  const config = getStarknetNetwork(network);
+  if (!config) return undefined;
+
+  // 1. Explicit override
+  if (options?.explicitUrl) {
+    return options.explicitUrl;
+  }
+
+  // 2. Alchemy
+  if (options?.alchemyApiKey && config.alchemy) {
+    return `https://${config.alchemy}/${options.alchemyApiKey}`;
+  }
+
+  // 3. Public fallback
+  return config.public;
+}
+
+/**
+ * Validate Starknet network names and return valid ones
+ */
+export function validateStarknetNetworks(networks: string[]): string[] {
+  const valid: string[] = [];
+  for (const name of networks) {
+    if (getStarknetNetwork(name)) {
+      valid.push(name);
+    } else {
+      console.warn(`⚠️  Unknown Starknet network "${name}" - skipping`);
+    }
+  }
+  return valid;
 }
 
 // ============================================================================
