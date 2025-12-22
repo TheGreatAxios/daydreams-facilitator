@@ -18,6 +18,8 @@
 import { Hono } from "hono";
 import { HTTPFacilitatorClient } from "@x402/core/http";
 
+import { createPaywall, evmPaywall, svmPaywall } from "@x402/paywall";
+
 import { createHonoPaidRoutes } from "../src/hono/index.js";
 import {
   createPrivateKeyEvmSigner,
@@ -64,6 +66,12 @@ const upto = createUptoModule({
 // Resource server with all payment schemes
 const resourceServer = createResourceServer(facilitatorClient);
 
+// Paywall provider for browser-based payment UI
+const paywallProvider = createPaywall()
+  .withNetwork(evmPaywall)
+  .withNetwork(svmPaywall)
+  .build();
+
 // ============================================================================
 // Route Configuration
 // ============================================================================
@@ -75,6 +83,11 @@ createHonoPaidRoutes(app, {
   middleware: {
     resourceServer,
     upto,
+    paywallProvider,
+    paywallConfig: {
+      appName: "Paid API Example (Hono)",
+      testnet: true,
+    },
   },
 })
   .get("/premium", (c) => c.json({ message: "premium content (evm)" }), {

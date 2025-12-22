@@ -18,6 +18,8 @@
 import express from "express";
 import { HTTPFacilitatorClient } from "@x402/core/http";
 
+import { createPaywall, evmPaywall, svmPaywall } from "@x402/paywall";
+
 import { createExpressPaidRoutes } from "../src/express/index.js";
 import {
   createPrivateKeyEvmSigner,
@@ -64,6 +66,12 @@ const upto = createUptoModule({
 // Resource server with all payment schemes
 const resourceServer = createResourceServer(facilitatorClient);
 
+// Paywall provider for browser-based payment UI
+const paywallProvider = createPaywall()
+  .withNetwork(evmPaywall)
+  .withNetwork(svmPaywall)
+  .build();
+
 // ============================================================================
 // Route Configuration
 // ============================================================================
@@ -76,6 +84,11 @@ createExpressPaidRoutes(app, {
   middleware: {
     resourceServer,
     upto,
+    paywallProvider,
+    paywallConfig: {
+      appName: "Paid API Example (Express)",
+      testnet: true,
+    },
   },
 })
   .get(

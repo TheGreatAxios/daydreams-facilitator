@@ -133,6 +133,12 @@ export function createHonoPaymentMiddleware(
       for (const [key, value] of Object.entries(result.headers)) {
         headers.set(key, value);
       }
+      if (result.isHtml) {
+        return c.html(result.body as string, {
+          status: result.status as 402,
+          headers,
+        });
+      }
       return c.json(result.body, {
         status: result.status as 402,
         headers,

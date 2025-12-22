@@ -19,6 +19,8 @@ import { Elysia } from "elysia";
 import { node } from "@elysiajs/node";
 import { HTTPFacilitatorClient } from "@x402/core/http";
 
+import { createPaywall, evmPaywall, svmPaywall } from "@x402/paywall";
+
 import { createElysiaPaidRoutes } from "../src/elysia/index.js";
 import {
   createPrivateKeyEvmSigner,
@@ -65,6 +67,12 @@ const upto = createUptoModule({
 // Resource server with all payment schemes
 const resourceServer = createResourceServer(facilitatorClient);
 
+// Paywall provider for browser-based payment UI
+const paywallProvider = createPaywall()
+  .withNetwork(evmPaywall)
+  .withNetwork(svmPaywall)
+  .build();
+
 // ============================================================================
 // Route Configuration
 // ============================================================================
@@ -80,6 +88,11 @@ createElysiaPaidRoutes(app, {
   middleware: {
     resourceServer,
     upto,
+    paywallProvider,
+    paywallConfig: {
+      appName: "Paid API Example",
+      testnet: true,
+    },
   },
 })
   .get("/premium", () => ({ message: "premium content (evm)" }), {

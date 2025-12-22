@@ -173,7 +173,7 @@ export async function resolvePaywallConfig<TContext>(
 
 export type BeforeHandleResult =
   | { action: "continue"; state: PaymentState }
-  | { action: "error"; state: PaymentState; status: number; headers: Record<string, string>; body: unknown }
+  | { action: "error"; state: PaymentState; status: number; headers: Record<string, string>; body: unknown; isHtml?: boolean }
   | { action: "tracking-error"; state: PaymentState; status: number; body: { error: string; message: string; sessionId: string } };
 
 export interface ProcessBeforeHandleOptions {
@@ -212,6 +212,7 @@ export async function processBeforeHandle(
       status: result.response.status,
       headers,
       body: result.response.body,
+      isHtml: result.response.isHtml,
     };
   }
 

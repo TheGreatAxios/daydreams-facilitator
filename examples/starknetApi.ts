@@ -18,26 +18,24 @@
  *   - STARKNET_NETWORK: starknet:mainnet | starknet:sepolia (default: starknet:sepolia)
  *   - STARKNET_PAY_TO: Recipient address for payments (required)
  *   - STARKNET_PRICE: ETH amount for this endpoint (default: 0.0001)
+ *
+ * Endpoints:
+ *   GET /api/starknet-premium - Exact payment (ETH on Starknet)
  */
 
 import { Elysia } from "elysia";
 import { node } from "@elysiajs/node";
 import { HTTPFacilitatorClient } from "@x402/core/http";
-import type {
-  PaymentPayload as CorePaymentPayload,
-  PaymentRequirements as CorePaymentRequirements,
-  SettleResponse as CoreSettleResponse,
-} from "@x402/core/types";
 import {
-  HTTP_HEADERS,
   buildETHPayment,
-  encodePaymentRequired,
-  encodePaymentResponse,
-  decodePaymentSignature,
   validateNetwork,
-  type PaymentRequired,
   type StarknetNetworkId,
 } from "x402-starknet";
+
+import { createPaywall, evmPaywall } from "@x402/paywall";
+
+import { createElysiaPaidRoutes } from "../src/elysia/index.js";
+import { createResourceServer } from "../src/server.js";
 
 // ============================================================================
 // Configuration
@@ -52,12 +50,21 @@ const PAY_TO = process.env.STARKNET_PAY_TO;
 const PRICE = Number(process.env.STARKNET_PRICE ?? "0.0001");
 
 if (!PAY_TO) {
-  // eslint-disable-next-line no-console
   console.error("Set STARKNET_PAY_TO to run Starknet API example.");
   process.exit(1);
 }
 
-const facilitator = new HTTPFacilitatorClient({ url: FACILITATOR_URL });
+// ============================================================================
+// Setup
+// ============================================================================
+
+const facilitatorClient = new HTTPFacilitatorClient({ url: FACILITATOR_URL });
+const resourceServer = createResourceServer(facilitatorClient);
+
+// Paywall provider for browser-based payment UI
+const paywallProvider = createPaywall()
+  .withNetwork(evmPaywall)
+  .build();
 
 const paymentRequirements = buildETHPayment({
   network: NETWORK,
@@ -66,88 +73,52 @@ const paymentRequirements = buildETHPayment({
   maxTimeoutSeconds: 120,
 });
 
-const facilitatorRequirements: CorePaymentRequirements = {
-  ...paymentRequirements,
-  extra: paymentRequirements.extra ?? {},
-};
-
-function buildPaymentRequired(url: string): PaymentRequired {
-  return {
-    x402Version: 2,
-    error: "Payment required",
-    resource: {
-      url,
-      description: "Starknet premium endpoint",
-      mimeType: "application/json",
-    },
-    accepts: [paymentRequirements],
-  };
-}
-
 // ============================================================================
-// API Server
+// Route Configuration
 // ============================================================================
 
 export const app = new Elysia({
   prefix: "/api",
   name: "starknetPaidApi",
   adapter: node(),
-}).get("/starknet-premium", async (ctx) => {
-  const paymentHeader = ctx.request.headers.get(HTTP_HEADERS.PAYMENT_SIGNATURE);
-
-  if (!paymentHeader) {
-    const paymentRequired = buildPaymentRequired(ctx.request.url);
-    ctx.set.status = 402;
-    ctx.set.headers[HTTP_HEADERS.PAYMENT_REQUIRED] =
-      encodePaymentRequired(paymentRequired);
-    return paymentRequired;
-  }
-
-  let payload: CorePaymentPayload;
-  try {
-    payload = decodePaymentSignature(paymentHeader) as CorePaymentPayload;
-  } catch (error) {
-    ctx.set.status = 400;
-    return { error: "invalid_payment_payload", details: String(error) };
-  }
-
-  const verification = await facilitator.verify(
-    payload,
-    facilitatorRequirements
-  );
-
-  if (!verification.isValid) {
-    ctx.set.status = 402;
-    return {
-      error: "payment_invalid",
-      reason: verification.invalidReason,
-    };
-  }
-
-  const settlement = (await facilitator.settle(
-    payload,
-    facilitatorRequirements
-  )) as CoreSettleResponse;
-
-  if (!settlement.success) {
-    ctx.set.status = 502;
-    return {
-      error: "settlement_failed",
-      reason: settlement.errorReason ?? "unknown",
-    };
-  }
-
-  ctx.set.headers[HTTP_HEADERS.PAYMENT_RESPONSE] = encodePaymentResponse(
-    settlement as unknown as CoreSettleResponse
-  );
-
-  return {
-    ok: true,
-    network: settlement.network,
-    transaction: settlement.transaction,
-  };
 });
 
+createElysiaPaidRoutes(app, {
+  basePath: "/api",
+  middleware: {
+    resourceServer,
+    paywallProvider,
+    paywallConfig: {
+      appName: "Starknet Paid API",
+      testnet: NETWORK.includes("sepolia"),
+    },
+  },
+}).get("/starknet-premium", () => ({ message: "premium starknet content" }), {
+  payment: {
+    accepts: {
+      scheme: "exact" as const,
+      network: NETWORK,
+      payTo: PAY_TO,
+      price: {
+        amount: paymentRequirements.amount,
+        asset: paymentRequirements.asset,
+      },
+    },
+    description: "Starknet premium endpoint",
+    mimeType: "application/json",
+  },
+});
+
+// ============================================================================
+// Start Server
+// ============================================================================
+
 app.listen(PORT);
-// eslint-disable-next-line no-console
-console.log(`Starknet API listening on http://localhost:${PORT}`);
+console.log(`
+Starknet API listening on http://localhost:${PORT}
+Facilitator: ${FACILITATOR_URL}
+Network: ${NETWORK}
+
+Endpoints:
+  GET /api/starknet-premium - Exact payment (${PRICE} ETH on Starknet)
+`);

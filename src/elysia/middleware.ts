@@ -154,6 +154,15 @@ export function createElysiaPaymentMiddleware(
     ctx.x402 = result.state;
 
     if (result.action === "error") {
+      if (result.isHtml) {
+        return new Response(result.body as string, {
+          status: result.status,
+          headers: {
+            ...result.headers,
+            "content-type": "text/html; charset=utf-8",
+          },
+        });
+      }
       ctx.set.status = result.status;
       ctx.set.headers = mergeHeaders(ctx.set.headers, result.headers);
       return result.body;
